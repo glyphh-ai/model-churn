@@ -1,0 +1,89 @@
+# Customer Churn Predictor
+# Encodes customer usage metrics into HDC vectors.
+# Queries match against known churn/retention patterns.
+
+name: churn-predictor
+version: 0.1.0
+description: |
+  Predicts customer churn risk by encoding usage metrics
+  (logins, support cases, defects, feature adoption) into
+  high-dimensional vectors and matching against known patterns.
+
+author: Glyphh AI
+license: MIT
+
+encoder:
+  dimensions: 10000
+  seed: 42
+  temporal_source: auto
+
+# Load bundled concept data on deploy
+auto_load_concepts: true
+
+# Test configuration
+tests:
+  file: tests.py
+  directory: tests/
+  data: tests/test-concepts.json
+
+roles:
+  customer_id:
+    type: text
+    key_part: true
+
+  risk_level:
+    type: categorical
+    values:
+      - high
+      - medium
+      - low
+
+  churn_driver:
+    type: categorical
+    values:
+      - low_usage
+      - support_burden
+      - defect_frustration
+      - low_adoption
+      - billing_friction
+      - onboarding_stall
+
+  usage_band:
+    type: categorical
+    values:
+      - inactive
+      - declining
+      - stable
+      - growing
+
+  logins:
+    type: numeric
+    bin_width: 10.0
+    min_value: 0.0
+    max_value: 200.0
+
+  support_cases:
+    type: numeric
+    bin_width: 1.0
+    min_value: 0.0
+    max_value: 20.0
+
+  defects:
+    type: numeric
+    bin_width: 1.0
+    min_value: 0.0
+    max_value: 15.0
+
+  feature_adoption:
+    type: numeric
+    bin_width: 5.0
+    min_value: 0.0
+    max_value: 100.0
+
+  keywords:
+    type: text
+    optional: true
+
+similarity:
+  threshold: 0.5
+  top_k: 3

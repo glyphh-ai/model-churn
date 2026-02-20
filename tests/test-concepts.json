@@ -1,0 +1,94 @@
+{
+  "customers": [
+    {
+      "customer_id": "acme-corp",
+      "logins": 0,
+      "support_cases": 0,
+      "defects": 0,
+      "feature_adoption": 10,
+      "_expected_risk": "high",
+      "_note": "completely inactive — should match high-risk low_usage patterns"
+    },
+    {
+      "customer_id": "beta-inc",
+      "logins": 50,
+      "support_cases": 15,
+      "defects": 4,
+      "feature_adoption": 55,
+      "_expected_risk": "high",
+      "_note": "active but drowning in support tickets"
+    },
+    {
+      "customer_id": "gamma-llc",
+      "logins": 15,
+      "support_cases": 6,
+      "defects": 9,
+      "feature_adoption": 30,
+      "_expected_risk": "high",
+      "_note": "declining usage with recurring defects"
+    },
+    {
+      "customer_id": "delta-co",
+      "logins": 45,
+      "support_cases": 2,
+      "defects": 1,
+      "feature_adoption": 20,
+      "_expected_risk": "medium",
+      "_note": "stable logins but barely using the product"
+    },
+    {
+      "customer_id": "epsilon-io",
+      "logins": 30,
+      "support_cases": 1,
+      "defects": 0,
+      "feature_adoption": 40,
+      "_expected_risk": "medium",
+      "_note": "slight usage dip, could go either way"
+    },
+    {
+      "customer_id": "zeta-tech",
+      "logins": 55,
+      "support_cases": 3,
+      "defects": 3,
+      "feature_adoption": 60,
+      "_expected_risk": "medium",
+      "_note": "decent engagement but open bugs at renewal time"
+    },
+    {
+      "customer_id": "omega-ai",
+      "logins": 150,
+      "support_cases": 0,
+      "defects": 0,
+      "feature_adoption": 95,
+      "_expected_risk": "low",
+      "_note": "power user, full adoption, no issues"
+    },
+    {
+      "customer_id": "sigma-dev",
+      "logins": 110,
+      "support_cases": 1,
+      "defects": 0,
+      "feature_adoption": 80,
+      "_expected_risk": "low",
+      "_note": "highly active, expanding usage"
+    },
+    {
+      "customer_id": "theta-sys",
+      "logins": 35,
+      "support_cases": 2,
+      "defects": 0,
+      "feature_adoption": 45,
+      "_expected_risk": "low",
+      "_note": "new customer, healthy onboarding trajectory"
+    },
+    {
+      "customer_id": "kappa-fin",
+      "logins": 2,
+      "support_cases": 4,
+      "defects": 0,
+      "feature_adoption": 35,
+      "_expected_risk": "high",
+      "_note": "almost no logins plus support escalations"
+    }
+  ]
+}

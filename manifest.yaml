@@ -1,0 +1,13 @@
+name: Customer Churn Predictor
+description: Encodes customer usage metrics (logins, support cases, defects, feature adoption) into HDC vectors to identify churn risk patterns via similarity matching.
+version: 0.1.0
+author: Glyphh AI
+license: MIT
+icon: 📉
+category: prediction
+public: true
+tags:
+  - churn
+  - prediction
+  - customer-success
+  - usage-metrics
