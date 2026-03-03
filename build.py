@@ -19,7 +19,7 @@ DATA_DIR = MODEL_DIR / "data"
 DEFAULT_OUTPUT = MODEL_DIR / "churn.glyphh"
 
 JSONL_FILES = [
-    "patterns.jsonl",
+    "exemplars.jsonl",
 ]
 
 

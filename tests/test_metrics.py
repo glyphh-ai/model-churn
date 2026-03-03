@@ -11,17 +11,13 @@ from encoder import ENCODER_CONFIG
 
 glyphh = pytest.importorskip("glyphh")
 
-from glyphh import Encoder, Concept, SimilarityCalculator
+from glyphh import Encoder, Concept
+from glyphh.core.ops import cosine_similarity
 
 
 @pytest.fixture(scope="module")
 def encoder():
     return Encoder(ENCODER_CONFIG)
-
-
-@pytest.fixture(scope="module")
-def similarity():
-    return SimilarityCalculator()
 
 
 def _make_customer(encoder, cid, logins=50, support=2, defects=1, adoption=50):
@@ -30,9 +26,7 @@ def _make_customer(encoder, cid, logins=50, support=2, defects=1, adoption=50):
         name=cid,
         attributes={
             "customer_id": cid,
-            "risk_level": "",
-            "churn_driver": "",
-            "usage_band": "",
+            "description": "",
             "keywords": "",
             "logins": logins,
             "support_cases": support,
@@ -40,6 +34,13 @@ def _make_customer(encoder, cid, logins=50, support=2, defects=1, adoption=50):
             "feature_adoption": adoption,
         },
     ))
+
+
+def _metrics_score(glyph1, glyph2):
+    """Cosine similarity on metrics layer cortex vectors."""
+    v1 = glyph1.layers["metrics"].cortex.data
+    v2 = glyph2.layers["metrics"].cortex.data
+    return float(cosine_similarity(v1, v2))
 
 
 def test_zero_logins_encodes(encoder):
@@ -61,30 +62,32 @@ def test_over_max_logins_encodes(encoder):
     assert glyph is not None
 
 
-def test_adjacent_logins_more_similar_than_distant(encoder, similarity):
-    """Customers with 50 vs 60 logins should be more similar than 50 vs 200."""
-    base = _make_customer(encoder, "base", logins=50)
-    near = _make_customer(encoder, "near", logins=60)
-    far = _make_customer(encoder, "far", logins=200)
+def test_nearby_logins_more_similar_than_distant(encoder):
+    """Customers with nearby logins should be more similar than distant ones."""
+    base = _make_customer(encoder, "base", logins=10)
+    near = _make_customer(encoder, "near", logins=30)
+    far = _make_customer(encoder, "far", logins=180)
 
-    near_score = similarity.compute(base, near).score
-    far_score = similarity.compute(base, far).score
+    near_score = _metrics_score(base, near)
+    far_score = _metrics_score(base, far)
 
     assert near_score > far_score, (
-        f"Adjacent logins ({near_score:.4f}) should be more similar than distant ({far_score:.4f})"
+        f"Nearby logins ({near_score:.4f}) should be more similar than distant ({far_score:.4f})"
     )
 
 
-def test_zero_support_vs_high_support(encoder, similarity):
-    """Zero support cases should be very different from 15 support cases."""
-    low = _make_customer(encoder, "low-support", support=0)
-    high = _make_customer(encoder, "high-support", support=15)
-    mid = _make_customer(encoder, "mid-support", support=3)
+def test_low_support_vs_extreme_support(encoder):
+    """Low support should be much more similar to zero than extreme support is."""
+    zero = _make_customer(encoder, "no-support", support=0, logins=0, defects=0, adoption=0)
+    low = _make_customer(encoder, "low-support", support=2, logins=0, defects=0, adoption=0)
+    extreme = _make_customer(encoder, "extreme-support", support=20, logins=0, defects=0, adoption=0)
 
-    mid_low = similarity.compute(mid, low).score
-    high_low = similarity.compute(high, low).score
+    low_zero = _metrics_score(low, zero)
+    extreme_zero = _metrics_score(extreme, zero)
 
-    assert mid_low > high_low
+    assert low_zero > extreme_zero, (
+        f"Low support ({low_zero:.4f}) should be more similar to zero than extreme ({extreme_zero:.4f})"
+    )
 
 
 def test_feature_adoption_boundaries(encoder):

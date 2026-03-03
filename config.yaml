@@ -1,13 +1,15 @@
 # Customer Churn Predictor
-# Encodes customer usage metrics into HDC vectors.
-# Queries match against known churn/retention patterns.
+# Encodes customer usage metrics + behavioral descriptions into HDC vectors.
+# Matches customer data against known churn exemplars via similarity.
+# Temporal: daily snapshots keyed by customer_id for drift detection.
 
 name: churn-predictor
-version: 0.1.0
+version: 0.2.0
 description: |
-  Predicts customer churn risk by encoding usage metrics
-  (logins, support cases, defects, feature adoption) into
-  high-dimensional vectors and matching against known patterns.
+  Predicts customer churn risk by encoding usage metrics and behavioral
+  descriptions into high-dimensional vectors and matching against known
+  exemplars. Semantic layer handles NL queries; metrics layer handles
+  raw customer data. Risk level is derived from similarity, not inferred.
 
 author: Glyphh AI
 license: MIT
@@ -17,73 +19,64 @@ encoder:
   seed: 42
   temporal_source: auto
 
-# Load bundled concept data on deploy
 auto_load_concepts: true
 
-# Test configuration
 tests:
   file: tests.py
   directory: tests/
   data: tests/test-concepts.json
 
-roles:
-  customer_id:
-    type: text
-    key_part: true
+layers:
+  semantic:
+    weight: 0.3
+    roles:
+      customer_id:
+        type: text
+        key_part: true
+        weight: 0.1
 
-  risk_level:
-    type: categorical
-    values:
-      - high
-      - medium
-      - low
+      description:
+        type: bag_of_words
 
-  churn_driver:
-    type: categorical
-    values:
-      - low_usage
-      - support_burden
-      - defect_frustration
-      - low_adoption
-      - billing_friction
-      - onboarding_stall
+      keywords:
+        type: bag_of_words
+        weight: 0.8
 
-  usage_band:
-    type: categorical
-    values:
-      - inactive
-      - declining
-      - stable
-      - growing
+  metrics:
+    weight: 0.7
+    roles:
+      logins:
+        type: numeric
+        bin_width: 5.0
+        min_value: 0.0
+        max_value: 200.0
 
-  logins:
-    type: numeric
-    bin_width: 10.0
-    min_value: 0.0
-    max_value: 200.0
+      support_cases:
+        type: numeric
+        bin_width: 1.0
+        min_value: 0.0
+        max_value: 20.0
 
-  support_cases:
-    type: numeric
-    bin_width: 1.0
-    min_value: 0.0
-    max_value: 20.0
+      defects:
+        type: numeric
+        bin_width: 1.0
+        min_value: 0.0
+        max_value: 15.0
 
-  defects:
-    type: numeric
-    bin_width: 1.0
-    min_value: 0.0
-    max_value: 15.0
-
-  feature_adoption:
-    type: numeric
-    bin_width: 5.0
-    min_value: 0.0
-    max_value: 100.0
-
-  keywords:
-    type: text
-    optional: true
+      feature_adoption:
+        type: numeric
+        bin_width: 5.0
+        min_value: 0.0
+        max_value: 100.0
 
 similarity:
-  threshold: 0.5
+  threshold: 0.45
   top_k: 3
+
+disambiguation:
+  min_gap: 0.015
+
+# Two-stage query: when an exemplar matches an NL query, execute this GQL
+# to find customer records with similar metric profiles.
+# {matched_id} is replaced with the matched exemplar's glyph ID at runtime.
+gql_query_default: 'FIND SIMILAR TO glyph("{matched_id}") AT LAYER metrics LIMIT 10 THRESHOLD 0.5'

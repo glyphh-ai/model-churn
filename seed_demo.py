@@ -30,7 +30,9 @@ def load_demo_records() -> list[dict]:
         for line in f:
             line = line.strip()
             if line:
-                records.append(json.loads(line))
+                record = json.loads(line)
+                record.setdefault("concept_text", record.get("customer_id", "unknown"))
+                records.append(record)
     return records
 
 

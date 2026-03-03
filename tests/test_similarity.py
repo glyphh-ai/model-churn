@@ -1,8 +1,12 @@
 """Test that raw customer data matches the correct risk patterns.
 
 These tests encode raw customer metrics (no risk labels) and compare
-against the training patterns to verify the model correctly identifies
+against the training exemplars to verify the model correctly identifies
 risk levels from metrics alone.
+
+Customer-to-exemplar matching uses the metrics layer cortex since
+customers have metrics but no text. The semantic layer drives NL query
+matching; the metrics layer drives customer data matching.
 """
 
 import json
@@ -18,7 +22,8 @@ from encoder import ENCODER_CONFIG, entry_to_record
 # These tests require the glyphh SDK
 glyphh = pytest.importorskip("glyphh")
 
-from glyphh import Encoder, Concept, SimilarityCalculator
+from glyphh import Encoder, Concept
+from glyphh.core.ops import cosine_similarity
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
@@ -29,16 +34,11 @@ def encoder():
 
 
 @pytest.fixture(scope="module")
-def similarity():
-    return SimilarityCalculator()
-
-
-@pytest.fixture(scope="module")
 def pattern_glyphs(encoder):
-    """Encode all training patterns into glyphs with their metadata."""
-    patterns_path = DATA_DIR / "patterns.jsonl"
+    """Encode all training exemplars into glyphs with their metadata."""
+    exemplars_path = DATA_DIR / "exemplars.jsonl"
     glyphs = []
-    with open(patterns_path) as f:
+    with open(exemplars_path) as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -60,9 +60,7 @@ def _encode_customer(customer, encoder):
         name=customer["customer_id"],
         attributes={
             "customer_id": customer["customer_id"],
-            "risk_level": "",
-            "churn_driver": "",
-            "usage_band": "",
+            "description": "",
             "keywords": "",
             "logins": customer["logins"],
             "support_cases": customer["support_cases"],
@@ -72,25 +70,35 @@ def _encode_customer(customer, encoder):
     ))
 
 
-def _find_best_match(customer_glyph, pattern_glyphs, similarity):
-    """Find the training pattern most similar to a customer glyph."""
+def _metrics_score(glyph1, glyph2):
+    """Cosine similarity on metrics layer cortex vectors.
+
+    Customer matching is metrics-driven (customers have data, no text).
+    """
+    v1 = glyph1.layers["metrics"].cortex.data
+    v2 = glyph2.layers["metrics"].cortex.data
+    return float(cosine_similarity(v1, v2))
+
+
+def _find_best_match(customer_glyph, pattern_glyphs):
+    """Find the training exemplar most similar to a customer glyph."""
     best_score = -1
     best_meta = None
     for pattern_glyph, meta in pattern_glyphs:
-        result = similarity.compute(customer_glyph, pattern_glyph)
-        if result.score > best_score:
-            best_score = result.score
+        score = _metrics_score(customer_glyph, pattern_glyph)
+        if score > best_score:
+            best_score = score
             best_meta = meta
     return best_meta, best_score
 
 
 def test_inactive_customer_matches_high_risk(
-    encoder, similarity, pattern_glyphs, expected_high_risk
+    encoder, pattern_glyphs, expected_high_risk
 ):
-    """acme-corp (0 logins, 0 everything) should match high-risk patterns."""
+    """acme-corp (0 logins, 0 everything) should match high-risk exemplars."""
     acme = next(c for c in expected_high_risk if c["customer_id"] == "acme-corp")
     glyph = _encode_customer(acme, encoder)
-    meta, score = _find_best_match(glyph, pattern_glyphs, similarity)
+    meta, score = _find_best_match(glyph, pattern_glyphs)
 
     assert meta["risk_level"] == "high", (
         f"acme-corp matched {meta['risk_level']} (score={score:.4f}), expected high"
@@ -98,12 +106,12 @@ def test_inactive_customer_matches_high_risk(
 
 
 def test_support_heavy_customer_matches_high_risk(
-    encoder, similarity, pattern_glyphs, expected_high_risk
+    encoder, pattern_glyphs, expected_high_risk
 ):
-    """beta-inc (15 support cases) should match high-risk patterns."""
+    """beta-inc (18 support cases) should match high-risk exemplars."""
     beta = next(c for c in expected_high_risk if c["customer_id"] == "beta-inc")
     glyph = _encode_customer(beta, encoder)
-    meta, score = _find_best_match(glyph, pattern_glyphs, similarity)
+    meta, score = _find_best_match(glyph, pattern_glyphs)
 
     assert meta["risk_level"] == "high", (
         f"beta-inc matched {meta['risk_level']} (score={score:.4f}), expected high"
@@ -111,12 +119,12 @@ def test_support_heavy_customer_matches_high_risk(
 
 
 def test_defect_heavy_customer_matches_high_risk(
-    encoder, similarity, pattern_glyphs, expected_high_risk
+    encoder, pattern_glyphs, expected_high_risk
 ):
-    """gamma-llc (9 defects, declining) should match high-risk patterns."""
+    """gamma-llc (9 defects, declining) should match high-risk exemplars."""
     gamma = next(c for c in expected_high_risk if c["customer_id"] == "gamma-llc")
     glyph = _encode_customer(gamma, encoder)
-    meta, score = _find_best_match(glyph, pattern_glyphs, similarity)
+    meta, score = _find_best_match(glyph, pattern_glyphs)
 
     assert meta["risk_level"] == "high", (
         f"gamma-llc matched {meta['risk_level']} (score={score:.4f}), expected high"
@@ -124,12 +132,12 @@ def test_defect_heavy_customer_matches_high_risk(
 
 
 def test_power_user_matches_low_risk(
-    encoder, similarity, pattern_glyphs, expected_low_risk
+    encoder, pattern_glyphs, expected_low_risk
 ):
-    """omega-ai (150 logins, 95% adoption) should match low-risk patterns."""
+    """omega-ai (150 logins, 95% adoption) should match low-risk exemplars."""
     omega = next(c for c in expected_low_risk if c["customer_id"] == "omega-ai")
     glyph = _encode_customer(omega, encoder)
-    meta, score = _find_best_match(glyph, pattern_glyphs, similarity)
+    meta, score = _find_best_match(glyph, pattern_glyphs)
 
     assert meta["risk_level"] == "low", (
         f"omega-ai matched {meta['risk_level']} (score={score:.4f}), expected low"
@@ -137,12 +145,12 @@ def test_power_user_matches_low_risk(
 
 
 def test_expanding_customer_matches_low_risk(
-    encoder, similarity, pattern_glyphs, expected_low_risk
+    encoder, pattern_glyphs, expected_low_risk
 ):
-    """sigma-dev (110 logins, 80% adoption) should match low-risk patterns."""
+    """sigma-dev (110 logins, 80% adoption) should match low-risk exemplars."""
     sigma = next(c for c in expected_low_risk if c["customer_id"] == "sigma-dev")
     glyph = _encode_customer(sigma, encoder)
-    meta, score = _find_best_match(glyph, pattern_glyphs, similarity)
+    meta, score = _find_best_match(glyph, pattern_glyphs)
 
     assert meta["risk_level"] == "low", (
         f"sigma-dev matched {meta['risk_level']} (score={score:.4f}), expected low"
@@ -150,28 +158,23 @@ def test_expanding_customer_matches_low_risk(
 
 
 def test_high_risk_scores_higher_than_low_risk(
-    encoder, similarity, pattern_glyphs, expected_high_risk, expected_low_risk
+    encoder, pattern_glyphs, expected_high_risk, expected_low_risk
 ):
-    """High-risk customers should have stronger matches to high-risk patterns
+    """High-risk customers should have stronger matches to high-risk exemplars
     than low-risk customers do."""
-    # Pick one high-risk and one low-risk customer
     acme = next(c for c in expected_high_risk if c["customer_id"] == "acme-corp")
     omega = next(c for c in expected_low_risk if c["customer_id"] == "omega-ai")
 
     acme_glyph = _encode_customer(acme, encoder)
     omega_glyph = _encode_customer(omega, encoder)
 
-    # Get their best match scores against high-risk patterns only
-    high_patterns = [(g, m) for g, m in pattern_glyphs if m["risk_level"] == "high"]
+    # Get their best match scores against high-risk exemplars only
+    high_exemplars = [(g, m) for g, m in pattern_glyphs if m["risk_level"] == "high"]
 
-    acme_best = max(
-        similarity.compute(acme_glyph, pg).score for pg, _ in high_patterns
-    )
-    omega_best = max(
-        similarity.compute(omega_glyph, pg).score for pg, _ in high_patterns
-    )
+    acme_best = max(_metrics_score(acme_glyph, pg) for pg, _ in high_exemplars)
+    omega_best = max(_metrics_score(omega_glyph, pg) for pg, _ in high_exemplars)
 
     assert acme_best > omega_best, (
         f"acme-corp ({acme_best:.4f}) should score higher against high-risk "
-        f"patterns than omega-ai ({omega_best:.4f})"
+        f"exemplars than omega-ai ({omega_best:.4f})"
     )

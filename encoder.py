@@ -2,15 +2,24 @@
 Custom encoder for the customer churn predictor model.
 
 Exports:
-  ENCODER_CONFIG — EncoderConfig with numeric binning for usage metrics
+  ENCODER_CONFIG — EncoderConfig with semantic + metrics layers
   encode_query(query) — converts NL text to a Concept for similarity search
-  entry_to_record(entry) — converts a JSONL entry to an encodable record
+  entry_to_record(entry) — converts a JSONL exemplar to an encodable record
 
-Uses Glyphh HDC primitives:
-  - NumericConfig with THERMOMETER encoding for continuous metrics
-  - Temporal layer with auto timestamps for trend tracking
-  - Lexicons on roles for NL query matching
-  - key_part roles for composite primary keys
+Architecture:
+  Semantic layer (0.3): identity (customer_id key_part) + context (description BoW, keywords BoW)
+    → Provides text-based matching for NL queries about customer health
+  Metrics layer (0.7): usage (logins, support_cases, defects, feature_adoption — THERMOMETER)
+    → Provides numeric matching for raw customer data records
+
+  Two matching paths, one config:
+    - Customer records (metrics, no text) → match on metrics layer
+    - NL queries (text, no metrics) → match on semantic layer
+    - Exemplars have BOTH → matchable from either direction
+
+  Risk level is the OUTCOME (exemplar metadata), never an encoded attribute.
+
+  Temporal: customer_id is key_part with auto timestamps for daily drift tracking.
 """
 
 import hashlib
@@ -26,8 +35,10 @@ from glyphh.core.config import (
     TemporalConfig,
 )
 
+from intent import extract_keywords, preprocess
+
 # ---------------------------------------------------------------------------
-# ENCODER_CONFIG — the real Glyphh encoder config
+# ENCODER_CONFIG
 # ---------------------------------------------------------------------------
 
 ENCODER_CONFIG = EncoderConfig(
@@ -36,9 +47,10 @@ ENCODER_CONFIG = EncoderConfig(
     temporal_source="auto",
     temporal_config=TemporalConfig(signal_type="auto"),
     layers=[
+        # --- Semantic layer: text-based matching for NL queries ---
         Layer(
             name="semantic",
-            similarity_weight=0.6,
+            similarity_weight=0.3,
             segments=[
                 Segment(
                     name="identity",
@@ -47,22 +59,6 @@ ENCODER_CONFIG = EncoderConfig(
                             name="customer_id",
                             similarity_weight=0.1,
                             key_part=True,
-                            lexicons=["customer", "account", "client", "customer id"],
-                        ),
-                        Role(
-                            name="risk_level",
-                            similarity_weight=0.9,
-                            lexicons=["risk", "churn risk", "risk level", "health"],
-                        ),
-                        Role(
-                            name="churn_driver",
-                            similarity_weight=0.8,
-                            lexicons=["driver", "reason", "cause", "churn driver"],
-                        ),
-                        Role(
-                            name="usage_band",
-                            similarity_weight=0.7,
-                            lexicons=["usage", "activity", "engagement", "trend"],
                         ),
                     ],
                 ),
@@ -70,17 +66,23 @@ ENCODER_CONFIG = EncoderConfig(
                     name="context",
                     roles=[
                         Role(
+                            name="description",
+                            similarity_weight=1.0,
+                            text_encoding="bag_of_words",
+                        ),
+                        Role(
                             name="keywords",
-                            similarity_weight=0.5,
-                            lexicons=["keywords", "tags", "terms"],
+                            similarity_weight=0.8,
+                            text_encoding="bag_of_words",
                         ),
                     ],
                 ),
             ],
         ),
+        # --- Metrics layer: numeric matching for customer data ---
         Layer(
             name="metrics",
-            similarity_weight=0.4,
+            similarity_weight=0.7,
             segments=[
                 Segment(
                     name="usage",
@@ -89,12 +91,11 @@ ENCODER_CONFIG = EncoderConfig(
                             name="logins",
                             similarity_weight=1.0,
                             numeric_config=NumericConfig(
-                                bin_width=10.0,
+                                bin_width=5.0,
                                 encoding_strategy=EncodingStrategy.THERMOMETER,
                                 min_value=0.0,
                                 max_value=200.0,
                             ),
-                            lexicons=["logins", "login count", "sessions", "activity"],
                         ),
                         Role(
                             name="support_cases",
@@ -105,7 +106,6 @@ ENCODER_CONFIG = EncoderConfig(
                                 min_value=0.0,
                                 max_value=20.0,
                             ),
-                            lexicons=["support", "tickets", "cases", "support cases"],
                         ),
                         Role(
                             name="defects",
@@ -116,7 +116,6 @@ ENCODER_CONFIG = EncoderConfig(
                                 min_value=0.0,
                                 max_value=15.0,
                             ),
-                            lexicons=["defects", "bugs", "errors", "crashes"],
                         ),
                         Role(
                             name="feature_adoption",
@@ -127,7 +126,6 @@ ENCODER_CONFIG = EncoderConfig(
                                 min_value=0.0,
                                 max_value=100.0,
                             ),
-                            lexicons=["adoption", "features", "feature usage", "utilization"],
                         ),
                     ],
                 ),
@@ -138,112 +136,18 @@ ENCODER_CONFIG = EncoderConfig(
 
 
 # ---------------------------------------------------------------------------
-# NL query helpers
-# ---------------------------------------------------------------------------
-
-_USAGE_BANDS = {
-    "none": "inactive", "zero": "inactive", "no": "inactive", "inactive": "inactive",
-    "stopped": "inactive", "ghosted": "inactive", "silent": "inactive", "dark": "inactive",
-    "dropping": "declining", "declining": "declining", "decreasing": "declining",
-    "fewer": "declining", "less": "declining", "reduced": "declining", "low": "declining",
-    "slowing": "declining", "fallen": "declining", "dropped": "declining", "dipped": "declining",
-    "steady": "stable", "stable": "stable", "normal": "stable", "average": "stable",
-    "increasing": "growing", "growing": "growing", "more": "growing", "high": "growing",
-    "active": "growing", "frequent": "growing", "healthy": "growing", "strong": "growing",
-}
-
-# Numeric defaults per usage band — used to anchor similarity against real customer metrics
-_BAND_DEFAULTS = {
-    "inactive":  {"logins": 0,   "support_cases": 0, "defects": 0, "feature_adoption": 10},
-    "declining": {"logins": 15,  "support_cases": 3, "defects": 1, "feature_adoption": 30},
-    "stable":    {"logins": 50,  "support_cases": 2, "defects": 1, "feature_adoption": 55},
-    "growing":   {"logins": 100, "support_cases": 1, "defects": 0, "feature_adoption": 80},
-}
-
-# Numeric defaults per churn driver — overrides band defaults for specific signals
-_DRIVER_DEFAULTS = {
-    "support_burden":     {"support_cases": 10, "defects": 3},
-    "defect_frustration": {"defects": 7, "support_cases": 6},
-    "low_adoption":       {"feature_adoption": 20},
-    "billing_friction":   {},
-    "onboarding_stall":   {"logins": 12, "feature_adoption": 15},
-    "low_usage":          {},
-}
-
-_CHURN_DRIVERS = {
-    "login": "low_usage", "usage": "low_usage", "logins": "low_usage",
-    "session": "low_usage", "activity": "low_usage",
-    "support": "support_burden", "ticket": "support_burden", "case": "support_burden",
-    "cases": "support_burden", "escalation": "support_burden",
-    "defect": "defect_frustration", "bug": "defect_frustration", "crash": "defect_frustration",
-    "error": "defect_frustration", "broken": "defect_frustration", "defects": "defect_frustration",
-    "feature": "low_adoption", "adoption": "low_adoption", "onboard": "onboarding_stall",
-    "billing": "billing_friction", "payment": "billing_friction", "invoice": "billing_friction",
-    "price": "billing_friction", "cost": "billing_friction",
-}
-
-_RISK_KEYWORDS = {
-    "high": ["churn", "cancel", "leaving", "at risk", "critical", "red", "danger",
-             "inactive", "zero logins", "no activity", "escalat", "stopped",
-             "ghosted", "dark", "no logins", "haven't logged", "prioritize",
-             "excessive support", "renewal at risk", "completely inactive"],
-    "medium": ["declining", "dropping", "fewer", "reduced", "warning", "yellow",
-               "slowing", "less active", "some risk", "approaching renewal",
-               "low adoption", "underutiliz", "onboarding", "billing issue"],
-    "low": ["stable", "growing", "healthy", "green", "active", "engaged",
-            "retained", "happy", "renew", "champion", "power user", "advocate"],
-}
-
-_STOP_WORDS = {
-    "how", "do", "i", "a", "the", "to", "is", "what", "my", "an",
-    "can", "does", "it", "in", "on", "for", "with", "me", "about",
-    "are", "which", "who", "will", "their", "this", "that", "of",
-}
-
-
-def _infer_risk(words):
-    text = " ".join(words)
-    for level, triggers in _RISK_KEYWORDS.items():
-        if any(t in text for t in triggers):
-            return level
-    return "medium"
-
-
-def _infer_driver(words):
-    for w in words:
-        clean = re.sub(r"[^a-z]", "", w)
-        if clean in _CHURN_DRIVERS:
-            return _CHURN_DRIVERS[clean]
-    return "low_usage"
-
-
-def _infer_usage_band(words):
-    for w in words:
-        clean = re.sub(r"[^a-z]", "", w)
-        if clean in _USAGE_BANDS:
-            return _USAGE_BANDS[clean]
-    return "stable"
-
-
-# ---------------------------------------------------------------------------
 # encode_query — NL text → Concept dict
 # ---------------------------------------------------------------------------
 
 def encode_query(query: str) -> dict:
-    """Convert a raw NL query about churn into a Concept-compatible dict."""
-    cleaned = re.sub(r"[^\w\s]", "", query.lower())
-    words = cleaned.split()
+    """Convert a raw NL query about churn into a Concept-compatible dict.
 
-    risk = _infer_risk(words)
-    driver = _infer_driver(words)
-    usage_band = _infer_usage_band(words)
-    keywords = " ".join(w for w in words if w not in _STOP_WORDS)
-
-    # Derive numeric defaults from usage band, then layer driver-specific overrides.
-    # This ensures "customers who stopped logging in" encodes with logins≈0 rather
-    # than the neutral midpoint, so inactive customers rank above stable ones.
-    nums = dict(_BAND_DEFAULTS[usage_band])
-    nums.update(_DRIVER_DEFAULTS.get(driver, {}))
+    Encodes text into the semantic layer (description + keywords).
+    No numeric values — query matching is text-driven.
+    Risk/driver labels are outcomes of similarity, not inputs.
+    """
+    cleaned = preprocess(query)
+    keywords = extract_keywords(query)
 
     stable_id = int(hashlib.md5(query.encode()).hexdigest()[:8], 16)
 
@@ -251,52 +155,46 @@ def encode_query(query: str) -> dict:
         "name": f"query_{stable_id:08d}",
         "attributes": {
             "customer_id": "",
-            "risk_level": risk,
-            "churn_driver": driver,
-            "usage_band": usage_band,
+            "description": cleaned,
             "keywords": keywords,
-            "logins": nums["logins"],
-            "support_cases": nums["support_cases"],
-            "defects": nums["defects"],
-            "feature_adoption": nums["feature_adoption"],
         },
     }
 
 
 # ---------------------------------------------------------------------------
-# entry_to_record — JSONL entry → encodable record + metadata
+# entry_to_record — JSONL exemplar → encodable record + metadata
 # ---------------------------------------------------------------------------
 
 def entry_to_record(entry: dict) -> dict:
-    """Convert a JSONL entry to an encodable record with metadata."""
-    question = entry.get("question", "").lower()
+    """Convert a JSONL exemplar to an encodable record with metadata.
+
+    Attributes encode the behavioral profile (text + metrics).
+    Risk/driver labels go to metadata only — returned after matching.
+    """
+    question = entry.get("question", "")
     customer_id = entry.get("customer_id", "")
-    risk = entry.get("risk_level", "medium")
-    driver = entry.get("churn_driver", "low_usage")
-    usage_band = entry.get("usage_band", "stable")
     kw_list = entry.get("keywords", [])
     kw_str = " ".join(kw_list) if isinstance(kw_list, list) else str(kw_list)
 
-    slug = re.sub(r"[^a-z0-9]+", "_", question).strip("_")[:40]
+    slug = re.sub(r"[^a-z0-9]+", "_", question.lower()).strip("_")[:40]
 
     return {
         "concept_text": question,
         "attributes": {
             "customer_id": customer_id,
-            "risk_level": risk,
-            "churn_driver": driver,
-            "usage_band": usage_band,
+            "description": preprocess(question),
             "keywords": kw_str,
-            "logins": entry.get("logins", 50),
-            "support_cases": entry.get("support_cases", 2),
-            "defects": entry.get("defects", 1),
-            "feature_adoption": entry.get("feature_adoption", 50),
+            "logins": entry.get("logins", 0),
+            "support_cases": entry.get("support_cases", 0),
+            "defects": entry.get("defects", 0),
+            "feature_adoption": entry.get("feature_adoption", 0),
         },
         "metadata": {
-            "response": entry.get("response", ""),
-            "risk_level": risk,
-            "churn_driver": driver,
+            "risk_level": entry.get("risk_level", ""),
+            "churn_driver": entry.get("churn_driver", ""),
             "recommended_action": entry.get("recommended_action", ""),
+            "response": entry.get("response", ""),
             "original_question": question,
+            **({"gql_query": entry["gql_query"]} if entry.get("gql_query") else {}),
         },
     }

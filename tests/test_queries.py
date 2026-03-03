@@ -1,4 +1,8 @@
-"""Test that encode_query produces correct attributes from NL text."""
+"""Test that encode_query produces correct attributes from NL text.
+
+encode_query extracts text for semantic matching — description and keywords.
+Risk/driver/band labels are outcomes of similarity, not inputs.
+"""
 
 import sys
 from pathlib import Path
@@ -8,52 +12,30 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from encoder import encode_query
 
 
-def test_high_risk_query_infers_high():
-    """Queries with high-risk signals should infer risk_level=high."""
+def test_query_has_description():
+    """Queries should have cleaned text as description for BoW matching."""
     result = encode_query("customer is completely inactive with zero logins")
-    assert result["attributes"]["risk_level"] == "high"
+    desc = result["attributes"]["description"]
+    assert "inactive" in desc
+    assert "logins" in desc
 
 
-def test_low_risk_query_infers_low():
-    """Queries with healthy signals should infer risk_level=low."""
-    result = encode_query("customer is active and engaged with growing usage")
-    assert result["attributes"]["risk_level"] == "low"
+def test_query_has_keywords():
+    """Queries should extract content keywords."""
+    result = encode_query("customer has many support tickets and defects")
+    kw = result["attributes"]["keywords"]
+    assert "support" in kw
+    assert "tickets" in kw
+    assert "defects" in kw
 
 
-def test_medium_risk_query_infers_medium():
-    """Queries with moderate signals should infer risk_level=medium."""
-    result = encode_query("customer usage is declining slightly")
-    assert result["attributes"]["risk_level"] == "medium"
-
-
-def test_driver_inference_support():
-    """Mentions of support/tickets should map to support_burden driver."""
-    result = encode_query("customer has many support tickets")
-    assert result["attributes"]["churn_driver"] == "support_burden"
-
-
-def test_driver_inference_defects():
-    """Mentions of bugs/defects should map to defect_frustration driver."""
-    result = encode_query("customer keeps hitting the same bug")
-    assert result["attributes"]["churn_driver"] == "defect_frustration"
-
-
-def test_driver_inference_billing():
-    """Mentions of billing/invoice should map to billing_friction driver."""
-    result = encode_query("customer disputed their invoice")
-    assert result["attributes"]["churn_driver"] == "billing_friction"
-
-
-def test_usage_band_inactive():
-    """Inactive signals should map to inactive usage_band."""
-    result = encode_query("customer has no activity at all")
-    assert result["attributes"]["usage_band"] == "inactive"
-
-
-def test_usage_band_growing():
-    """Growing signals should map to growing usage_band."""
-    result = encode_query("customer logins are increasing rapidly")
-    assert result["attributes"]["usage_band"] == "growing"
+def test_keywords_exclude_stop_words():
+    """Keywords should filter out common stop words."""
+    result = encode_query("how do I find the customers at risk")
+    kw = result["attributes"]["keywords"]
+    assert "how" not in kw.split()
+    assert "do" not in kw.split()
+    assert "the" not in kw.split()
 
 
 def test_query_has_customer_id_empty():
@@ -70,10 +52,27 @@ def test_query_has_stable_name():
     assert r1["name"] == r2["name"]
 
 
-def test_keywords_exclude_stop_words():
-    """Keywords should filter out common stop words."""
-    result = encode_query("how do I find the customers at risk")
-    kw = result["attributes"]["keywords"]
-    assert "how" not in kw.split()
-    assert "do" not in kw.split()
-    assert "the" not in kw.split()
+def test_query_has_no_numeric_values():
+    """Queries should not contain numeric metric values — matching is text-driven."""
+    result = encode_query("customers likely to churn")
+    attrs = result["attributes"]
+    assert "logins" not in attrs
+    assert "support_cases" not in attrs
+    assert "defects" not in attrs
+    assert "feature_adoption" not in attrs
+
+
+def test_query_has_no_risk_labels():
+    """Queries should not infer risk/driver/band — those are outcomes."""
+    result = encode_query("show me at-risk customers with support issues")
+    attrs = result["attributes"]
+    assert "risk_level" not in attrs
+    assert "churn_driver" not in attrs
+    assert "usage_band" not in attrs
+
+
+def test_description_is_lowercased():
+    """Description should be lowercased for consistent BoW encoding."""
+    result = encode_query("Customer Has HIGH Support Cases")
+    desc = result["attributes"]["description"]
+    assert desc == desc.lower()

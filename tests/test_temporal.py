@@ -28,9 +28,7 @@ def test_same_customer_different_metrics_different_glyphs(encoder, test_customer
         name=acme["customer_id"],
         attributes={
             "customer_id": acme["customer_id"],
-            "risk_level": "",
-            "churn_driver": "",
-            "usage_band": "",
+            "description": "",
             "keywords": "",
             "logins": acme["logins"],
             "support_cases": acme["support_cases"],
@@ -44,9 +42,7 @@ def test_same_customer_different_metrics_different_glyphs(encoder, test_customer
         name=acme["customer_id"],
         attributes={
             "customer_id": acme["customer_id"],
-            "risk_level": "",
-            "churn_driver": "",
-            "usage_band": "",
+            "description": "",
             "keywords": "",
             "logins": 40,
             "support_cases": acme["support_cases"],

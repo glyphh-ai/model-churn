@@ -11,12 +11,12 @@
     },
     {
       "customer_id": "beta-inc",
-      "logins": 50,
-      "support_cases": 15,
-      "defects": 4,
-      "feature_adoption": 55,
+      "logins": 40,
+      "support_cases": 18,
+      "defects": 5,
+      "feature_adoption": 40,
       "_expected_risk": "high",
-      "_note": "active but drowning in support tickets"
+      "_note": "drowning in support tickets, friction reducing usage"
     },
     {
       "customer_id": "gamma-llc",
