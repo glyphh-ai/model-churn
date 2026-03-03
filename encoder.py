@@ -143,11 +143,31 @@ ENCODER_CONFIG = EncoderConfig(
 
 _USAGE_BANDS = {
     "none": "inactive", "zero": "inactive", "no": "inactive", "inactive": "inactive",
+    "stopped": "inactive", "ghosted": "inactive", "silent": "inactive", "dark": "inactive",
     "dropping": "declining", "declining": "declining", "decreasing": "declining",
     "fewer": "declining", "less": "declining", "reduced": "declining", "low": "declining",
+    "slowing": "declining", "fallen": "declining", "dropped": "declining", "dipped": "declining",
     "steady": "stable", "stable": "stable", "normal": "stable", "average": "stable",
     "increasing": "growing", "growing": "growing", "more": "growing", "high": "growing",
-    "active": "growing", "frequent": "growing",
+    "active": "growing", "frequent": "growing", "healthy": "growing", "strong": "growing",
+}
+
+# Numeric defaults per usage band — used to anchor similarity against real customer metrics
+_BAND_DEFAULTS = {
+    "inactive":  {"logins": 0,   "support_cases": 0, "defects": 0, "feature_adoption": 10},
+    "declining": {"logins": 15,  "support_cases": 3, "defects": 1, "feature_adoption": 30},
+    "stable":    {"logins": 50,  "support_cases": 2, "defects": 1, "feature_adoption": 55},
+    "growing":   {"logins": 100, "support_cases": 1, "defects": 0, "feature_adoption": 80},
+}
+
+# Numeric defaults per churn driver — overrides band defaults for specific signals
+_DRIVER_DEFAULTS = {
+    "support_burden":     {"support_cases": 10, "defects": 3},
+    "defect_frustration": {"defects": 7, "support_cases": 6},
+    "low_adoption":       {"feature_adoption": 20},
+    "billing_friction":   {},
+    "onboarding_stall":   {"logins": 12, "feature_adoption": 15},
+    "low_usage":          {},
 }
 
 _CHURN_DRIVERS = {
@@ -164,11 +184,14 @@ _CHURN_DRIVERS = {
 
 _RISK_KEYWORDS = {
     "high": ["churn", "cancel", "leaving", "at risk", "critical", "red", "danger",
-             "inactive", "zero logins", "no activity", "escalat"],
+             "inactive", "zero logins", "no activity", "escalat", "stopped",
+             "ghosted", "dark", "no logins", "haven't logged", "prioritize",
+             "excessive support", "renewal at risk", "completely inactive"],
     "medium": ["declining", "dropping", "fewer", "reduced", "warning", "yellow",
-               "slowing", "less active", "some risk"],
+               "slowing", "less active", "some risk", "approaching renewal",
+               "low adoption", "underutiliz", "onboarding", "billing issue"],
     "low": ["stable", "growing", "healthy", "green", "active", "engaged",
-            "retained", "happy", "renew"],
+            "retained", "happy", "renew", "champion", "power user", "advocate"],
 }
 
 _STOP_WORDS = {
@@ -216,6 +239,12 @@ def encode_query(query: str) -> dict:
     usage_band = _infer_usage_band(words)
     keywords = " ".join(w for w in words if w not in _STOP_WORDS)
 
+    # Derive numeric defaults from usage band, then layer driver-specific overrides.
+    # This ensures "customers who stopped logging in" encodes with logins≈0 rather
+    # than the neutral midpoint, so inactive customers rank above stable ones.
+    nums = dict(_BAND_DEFAULTS[usage_band])
+    nums.update(_DRIVER_DEFAULTS.get(driver, {}))
+
     stable_id = int(hashlib.md5(query.encode()).hexdigest()[:8], 16)
 
     return {
@@ -226,10 +255,10 @@ def encode_query(query: str) -> dict:
             "churn_driver": driver,
             "usage_band": usage_band,
             "keywords": keywords,
-            "logins": 50,
-            "support_cases": 2,
-            "defects": 1,
-            "feature_adoption": 50,
+            "logins": nums["logins"],
+            "support_cases": nums["support_cases"],
+            "defects": nums["defects"],
+            "feature_adoption": nums["feature_adoption"],
         },
     }
 
