@@ -195,6 +195,7 @@ def entry_to_record(entry: dict) -> dict:
             "recommended_action": entry.get("recommended_action", ""),
             "response": entry.get("response", ""),
             "original_question": question,
+            **({"gql_id": entry["gql_id"]} if entry.get("gql_id") else {}),
             **({"gql_query": entry["gql_query"]} if entry.get("gql_query") else {}),
         },
     }

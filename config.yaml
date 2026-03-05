@@ -72,11 +72,13 @@ layers:
 similarity:
   threshold: 0.45
   top_k: 3
+  default_filter:
+    record_type: pattern
 
 disambiguation:
   min_gap: 0.015
 
-# Two-stage query: when an exemplar matches an NL query, execute this GQL
-# to find customer records with similar metric profiles.
-# {matched_id} is replaced with the matched exemplar's glyph ID at runtime.
-gql_query_default: 'FIND SIMILAR TO glyph("{matched_id}") AT LAYER metrics LIMIT 10 THRESHOLD 0.5'
+# Two-stage query: when an exemplar matches, execute this GQL procedure
+# to find matching customer records.  References a procedure ID in gql.json.
+# Can also be inline GQL (backwards compatible).
+gql_query_default: find_similar_customers
