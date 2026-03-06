@@ -42,7 +42,7 @@ from intent import extract_keywords, preprocess
 # ---------------------------------------------------------------------------
 
 ENCODER_CONFIG = EncoderConfig(
-    dimension=10000,
+    dimension=2000,
     seed=42,
     temporal_source="auto",
     temporal_config=TemporalConfig(signal_type="auto"),
