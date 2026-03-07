@@ -119,10 +119,10 @@ Each daily load creates a new temporal snapshot per customer:
 Run the test suite before deploying:
 
 ```bash
-# Via CLI
-glyphh model test ./churn
-glyphh model test ./churn -v
-glyphh model test ./churn -k similarity
+# Inside the glyphh shell:
+# glyphh> model test .
+# glyphh> model test . -v
+# glyphh> model test . -k similarity
 
 # Or directly
 cd churn/
@@ -177,14 +177,17 @@ The model infers risk, churn driver, and recommended actions by comparing raw cu
 Exemplars load automatically at startup. Customer records are ingested separately via the listener API — the same path real customer data would take.
 
 ```bash
-# 1. Start the model
-glyphh dev . -d
+# 1. Start the Glyphh shell (prompts login on first run)
+glyphh
 
-# 2. Seed 25 demo customers
+# Inside the shell:
+# glyphh> dev start . --daemon   # start dev server in background
+
+# 2. Seed 25 demo customers (from a separate terminal)
 python seed_demo.py
 
-# 3. Chat
-glyphh chat
+# 3. Chat (back in the glyphh shell)
+# glyphh> chat
 ```
 
 ### Demo queries to try
@@ -228,13 +231,8 @@ curl -X POST http://localhost:8002/local-dev-org/churn/listener \
 ## Query Examples
 
 ```bash
-# Broad similarity search — find customers matching churn signals
-glyphh query "customers who stopped logging in"
-glyphh query "accounts with excessive support tickets"
-
-# Specific customer lookup
-glyphh query "what is acme-corp's churn risk?"
-
-# Trend analysis
-glyphh query "login trend for acme-corp over 90 days"
+# Inside the glyphh shell:
+# glyphh> query "customers who stopped logging in"
+# glyphh> query "accounts with excessive support tickets"
+# glyphh> query "what is acme-corp's churn risk?"
 ```
