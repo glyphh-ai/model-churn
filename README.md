@@ -32,7 +32,19 @@ glyphh
 # glyphh> dev start .          # starts local dev server
 ```
 
-### 3. Query the model
+### 3. Load data
+
+`dev start .` auto-loads exemplars from `data/exemplars.jsonl`. For package deploys (`.glyphh`), load them explicitly:
+
+```bash
+# Inside the shell:
+# glyphh> model package                      # build .glyphh package
+# glyphh> model deploy model-churn.glyphh    # deploy model config
+# glyphh> model load data/exemplars.jsonl    # load exemplar patterns
+# glyphh> model load demo/customers.jsonl    # load demo customer data
+```
+
+### 4. Query the model
 
 ```bash
 # Inside the shell:
@@ -77,7 +89,7 @@ churn/
 ├── seed_demo.py           # loads demo customers into the running model
 ├── tests.py               # test runner entry point
 ├── data/
-│   └── exemplars.jsonl    # churn exemplar definitions — auto-loaded at startup
+│   └── exemplars.jsonl    # churn exemplar definitions (auto-loaded by dev start, manual for package deploy)
 ├── demo/
 │   └── customers.jsonl    # 25 synthetic customer records for demo/testing
 ├── tests/
@@ -93,7 +105,7 @@ churn/
 ```
 
 **Two-tier data model:**
-- `data/exemplars.jsonl` — the model's *domain expertise*. Auto-loaded at startup. Defines what different risk profiles look like in the HDC similarity space.
+- `data/exemplars.jsonl` — the model's *domain expertise*. Auto-loaded by `dev start .`; requires `model load data/exemplars.jsonl` for package deploys. Defines what different risk profiles look like in the HDC similarity space.
 - Customer records — *runtime data*. Ingested via the listener API. Real (or demo) customer accounts that queries match against.
 
 ## NL Query Pipeline
@@ -215,7 +227,13 @@ The model infers risk, churn driver, and recommended actions by comparing raw cu
 
 ## Running the Demo
 
-Exemplars load automatically at startup. Customer records are ingested separately via the listener API — the same path real customer data would take.
+With `dev start .`, exemplars load automatically. For package deploys, load them explicitly after deploying:
+
+```bash
+# glyphh> model load data/exemplars.jsonl
+```
+
+Customer records are ingested separately via the listener API — the same path real customer data would take.
 
 ```bash
 # 1. Start the Glyphh shell (prompts login on first run)
