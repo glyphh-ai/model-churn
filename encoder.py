@@ -190,6 +190,7 @@ def entry_to_record(entry: dict) -> dict:
             "feature_adoption": entry.get("feature_adoption", 0),
         },
         "metadata": {
+            "record_type": entry.get("record_type", "pattern"),
             "risk_level": entry.get("risk_level", ""),
             "churn_driver": entry.get("churn_driver", ""),
             "recommended_action": entry.get("recommended_action", ""),
