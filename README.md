@@ -2,6 +2,47 @@
 
 Encodes customer usage metrics into HDC vectors to identify churn risk patterns via similarity matching. Supports natural language queries with domain synonym expansion, morphological normalization, and two-stage exemplar-to-customer matching.
 
+**[Docs →](https://glyphh.ai/docs)** · **[Glyphh Hub →](https://glyphh.ai/hub)**
+
+---
+
+## Getting Started
+
+### 1. Install the Glyphh CLI
+
+```bash
+# Create and activate a virtual environment (recommended)
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+# Install (single-quotes required in zsh)
+pip install 'glyphh[runtime]'
+```
+
+### 2. Clone and start the model
+
+```bash
+git clone https://github.com/glyphh-ai/model-churn.git
+cd model-churn
+
+# Start the Glyphh shell (prompts login on first run)
+glyphh
+
+# Inside the shell:
+# glyphh> dev start .          # starts local dev server
+```
+
+### 3. Query the model
+
+```bash
+# Inside the shell:
+# glyphh> chat "what customers are likely to churn?"
+# glyphh> chat "show me accounts with no logins"
+
+# Interactive REPL
+# glyphh> chat
+```
+
 ## How It Works
 
 You load your customer data daily (e.g. 100k accounts). Each customer is encoded as a glyph keyed by `customer_id` with an auto-generated timestamp. The model compares each customer's metrics against known churn patterns to surface risk levels, drivers, and recommended actions.
