@@ -146,16 +146,20 @@ def encode_query(query: str) -> dict:
     No numeric values — query matching is text-driven.
     Risk/driver labels are outcomes of similarity, not inputs.
     """
-    cleaned = preprocess(query)
     keywords = extract_keywords(query)
 
     stable_id = int(hashlib.md5(query.encode()).hexdigest()[:8], 16)
 
+    # Use expanded keywords for BOTH description and keywords roles.
+    # For NL queries, the raw query text adds noise to description BoW
+    # (short common words dominate), while synonym-expanded keywords
+    # carry the actual domain signal. Doubling down on keywords via
+    # both roles gives consistent, vocabulary-driven matching.
     return {
         "name": f"query_{stable_id:08d}",
         "attributes": {
             "customer_id": "",
-            "description": cleaned,
+            "description": keywords,
             "keywords": keywords,
         },
     }
