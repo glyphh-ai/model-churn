@@ -87,6 +87,8 @@ _PHRASE_MAP = {
     "no logins":         "no_logins",
     "zero logins":       "no_logins",
     "likely to":         "likely_to",
+    "likley to":         "likely_to",
+    "likly to":          "likely_to",
     "about to":          "about_to",
     "going to":          "going_to",
     "churn risk":        "churn_risk",
@@ -287,6 +289,8 @@ _DOMAIN_SYNONYMS: dict[str, list[str]] = {
 
     # ── Urgency / likelihood ──
     "likely":       ["churn", "at_risk", "likely to leave", "cancel"],
+    "likley":       ["churn", "at_risk", "likely to leave", "cancel"],
+    "likly":        ["churn", "at_risk", "likely to leave", "cancel"],
     "imminent":     ["churn", "at_risk", "cancel", "urgent"],
     "soon":         ["churn", "at_risk", "watchlist"],
     "upcoming":     ["renewal", "deadline", "watchlist"],
