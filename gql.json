@@ -1,6 +1,6 @@
 {
   "find_similar_customers": {
-    "gql": "FIND SIMILAR TO glyph(\"{matched_id}\") AT LAYER metrics WHERE record_type = 'customer' LIMIT 10 THRESHOLD 0.25",
+    "gql": "FIND SIMILAR TO glyph(\"{matched_id}\") AT LAYER metrics LIMIT 10 THRESHOLD 0.25",
     "description": "Find customers whose usage metrics match the exemplar pattern",
     "slots": {
       "matched_id": {
