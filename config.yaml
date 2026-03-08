@@ -77,7 +77,7 @@ similarity:
     record_type: pattern
 
 disambiguation:
-  min_gap: 0.015
+  min_gap: 0.008
 
 # Two-stage query: when an exemplar matches, execute this GQL procedure
 # to find matching customer records.  References a procedure ID in gql.json.
