@@ -73,6 +73,7 @@ similarity:
   threshold: 0.45
   top_k: 3
   query_scope: semantic
+  store_hierarchical_vectors: true
   default_filter:
     record_type: pattern
 
