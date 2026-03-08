@@ -47,25 +47,25 @@ layers:
     roles:
       logins:
         type: numeric
-        bin_width: 5.0
+        bin_width: 25.0
         min_value: 0.0
         max_value: 200.0
 
       support_cases:
         type: numeric
-        bin_width: 1.0
+        bin_width: 4.0
         min_value: 0.0
         max_value: 20.0
 
       defects:
         type: numeric
-        bin_width: 1.0
+        bin_width: 3.0
         min_value: 0.0
         max_value: 15.0
 
       feature_adoption:
         type: numeric
-        bin_width: 5.0
+        bin_width: 15.0
         min_value: 0.0
         max_value: 100.0
 

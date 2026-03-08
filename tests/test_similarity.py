@@ -44,6 +44,9 @@ def pattern_glyphs(encoder):
             if not line:
                 continue
             entry = json.loads(line)
+            # Skip semantic-only exemplars (no meaningful metrics)
+            if entry.get("risk_level") == "all":
+                continue
             record = entry_to_record(entry)
             concept = Concept(
                 name=record["concept_text"],
