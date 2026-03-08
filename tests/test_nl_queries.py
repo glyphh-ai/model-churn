@@ -113,6 +113,16 @@ class TestChurnExitQueries:
         meta, score = _find_best_match(glyph, pattern_glyphs)
         assert meta["risk_level"] in ("high", "all"), f"matched {meta['risk_level']} ({score:.4f})"
 
+    def test_generic_churn_query_matches_catchall(self, encoder, pattern_glyphs):
+        """Generic 'which customers are likely to churn' should match the
+        catch-all exemplar (risk_level=all), not a specific high-risk one."""
+        glyph = _encode_nl_query("which customers are likely to churn", encoder)
+        meta, score = _find_best_match(glyph, pattern_glyphs)
+        assert meta["risk_level"] == "all", (
+            f"matched {meta['risk_level']} ({score:.4f}), "
+            f"expected catch-all (risk_level=all)"
+        )
+
     def test_which_accounts_at_risk_of_leaving(self, encoder, pattern_glyphs):
         glyph = _encode_nl_query("which accounts are at risk of leaving", encoder)
         meta, score = _find_best_match(glyph, pattern_glyphs)
