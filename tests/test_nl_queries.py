@@ -17,7 +17,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from encoder import ENCODER_CONFIG, encode_query, assess_query, entry_to_record
+from encoder import ENCODER_CONFIG, encode_query, entry_to_record
 
 glyphh = pytest.importorskip("glyphh")
 
@@ -429,43 +429,3 @@ class TestStemming:
         glyph = _encode_nl_query("customers who are engaged and active", encoder)
         meta, score = _find_best_match(glyph, pattern_glyphs)
         assert meta["risk_level"] == "low", f"matched {meta['risk_level']} ({score:.4f})"
-
-
-# ---------------------------------------------------------------------------
-# assess_query — vague / empty queries should be rejected
-# ---------------------------------------------------------------------------
-
-class TestAssessQuery:
-    """Vague queries with no domain keywords should return incomplete."""
-
-    def test_single_stop_word_which(self):
-        result = assess_query("which")
-        assert result["complete"] is False
-
-    def test_single_stop_word_what(self):
-        result = assess_query("what")
-        assert result["complete"] is False
-
-    def test_single_stop_word_the(self):
-        result = assess_query("the")
-        assert result["complete"] is False
-
-    def test_empty_query(self):
-        result = assess_query("")
-        assert result["complete"] is False
-
-    def test_only_stop_words(self):
-        result = assess_query("show me the customers who are")
-        assert result["complete"] is False
-
-    def test_valid_churn_query(self):
-        result = assess_query("which customers are likely to churn")
-        assert result["complete"] is True
-
-    def test_valid_support_query(self):
-        result = assess_query("frustrated customers with tickets")
-        assert result["complete"] is True
-
-    def test_valid_single_keyword(self):
-        result = assess_query("churn")
-        assert result["complete"] is True

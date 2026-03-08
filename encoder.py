@@ -170,26 +170,6 @@ def encode_query(query: str) -> dict:
 # entry_to_record — JSONL exemplar → encodable record + metadata
 # ---------------------------------------------------------------------------
 
-def assess_query(query: str) -> dict:
-    """Check if a query has enough signal for meaningful matching.
-
-    Called by the runtime before similarity search.  Returns ASK
-    immediately when the query produces no domain keywords — this
-    prevents empty BoW vectors from matching on the metrics layer alone.
-    """
-    keywords = extract_keywords(query)
-    if not keywords.strip():
-        return {
-            "complete": False,
-            "missing": ["topic"],
-            "reason": (
-                "Your query is too vague. Try asking about customer churn, "
-                "engagement, support issues, or similar topics."
-            ),
-        }
-    return {"complete": True}
-
-
 def entry_to_record(entry: dict) -> dict:
     """Convert a JSONL exemplar to an encodable record with metadata.
 
@@ -221,6 +201,10 @@ def entry_to_record(entry: dict) -> dict:
             "recommended_action": entry.get("recommended_action", ""),
             "response": entry.get("response", ""),
             "original_question": question,
+            "logins": entry.get("logins", 0),
+            "support_cases": entry.get("support_cases", 0),
+            "defects": entry.get("defects", 0),
+            "feature_adoption": entry.get("feature_adoption", 0),
             **({"gql_id": entry["gql_id"]} if entry.get("gql_id") else {}),
             **({"gql_query": entry["gql_query"]} if entry.get("gql_query") else {}),
         },
