@@ -2,7 +2,7 @@
 
 Encodes customer usage metrics into HDC vectors to identify churn risk patterns via similarity matching. Supports natural language queries with domain synonym expansion, morphological normalization, and two-stage exemplar-to-customer matching.
 
-**[Docs →](https://glyphh.ai/docs)** · **[Glyphh Hub →](https://glyphh.ai/hub)**
+Built on [**Glyphh Ada 1.1**](https://www.glyphh.ai/products/runtime) · **[Docs →](https://glyphh.ai/docs)** · **[Glyphh Hub →](https://glyphh.ai/hub)**
 
 ---
 
@@ -29,18 +29,17 @@ cd model-churn
 glyphh
 
 # Inside the shell:
-# glyphh> dev start .          # starts local dev server
+# glyphh> dev start              # starts local dev server
+# glyphh> model package          # build .glyphh package
+# glyphh> model deploy model-churn.glyphh    # deploy to runtime
 ```
 
-### 3. Load data
+### 3. Load demo data
 
-`dev start .` auto-loads exemplars from `data/exemplars.jsonl`. For package deploys (`.glyphh`), load them explicitly:
+After deploying the model, load demo customer records:
 
 ```bash
 # Inside the shell:
-# glyphh> model package                      # build .glyphh package
-# glyphh> model deploy model-churn.glyphh    # deploy model config
-# glyphh> model load data/exemplars.jsonl    # load exemplar patterns
 # glyphh> model load demo/customers.jsonl    # load demo customer data
 ```
 
@@ -89,7 +88,7 @@ churn/
 ├── seed_demo.py           # loads demo customers into the running model
 ├── tests.py               # test runner entry point
 ├── data/
-│   └── exemplars.jsonl    # churn exemplar definitions (auto-loaded by dev start, manual for package deploy)
+│   └── exemplars.jsonl    # churn exemplar definitions
 ├── demo/
 │   └── customers.jsonl    # 25 synthetic customer records for demo/testing
 ├── tests/
@@ -105,7 +104,7 @@ churn/
 ```
 
 **Two-tier data model:**
-- `data/exemplars.jsonl` — the model's *domain expertise*. Auto-loaded by `dev start .`; requires `model load data/exemplars.jsonl` for package deploys. Defines what different risk profiles look like in the HDC similarity space.
+- `data/exemplars.jsonl` — the model's *domain expertise*. Included in the .glyphh package on deploy. Defines what different risk profiles look like in the HDC similarity space.
 - Customer records — *runtime data*. Ingested via the listener API. Real (or demo) customer accounts that queries match against.
 
 ## NL Query Pipeline
@@ -227,12 +226,6 @@ The model infers risk, churn driver, and recommended actions by comparing raw cu
 
 ## Running the Demo
 
-With `dev start .`, exemplars load automatically. For package deploys, load them explicitly after deploying:
-
-```bash
-# glyphh> model load data/exemplars.jsonl
-```
-
 Customer records are ingested separately via the listener API — the same path real customer data would take.
 
 ```bash
@@ -240,7 +233,7 @@ Customer records are ingested separately via the listener API — the same path 
 glyphh
 
 # Inside the shell:
-# glyphh> dev start . --daemon   # start dev server in background
+# glyphh> dev start --daemon   # start dev server in background
 
 # 2. Seed 25 demo customers (from a separate terminal)
 python seed_demo.py
