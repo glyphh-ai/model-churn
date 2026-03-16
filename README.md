@@ -15,7 +15,7 @@ Built on [**Glyphh Ada 1.1**](https://www.glyphh.ai/products/runtime) · **[Docs
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
-# Install (single-quotes required in zsh)
+# Install with runtime dependencies (includes FastAPI, SQLAlchemy, pgvector)
 pip install 'glyphh[runtime]'
 ```
 
@@ -30,17 +30,17 @@ glyphh
 
 # Inside the shell:
 # glyphh> dev start              # starts local dev server
-# glyphh> model package          # build .glyphh package
-# glyphh> model deploy model-churn.glyphh    # deploy to runtime
 ```
 
-### 3. Load demo data
-
-After deploying the model, load demo customer records:
+### 3. Deploy the model
 
 ```bash
-# Inside the shell:
-# glyphh> model load demo/customers.jsonl    # load demo customer data
+glyphh
+# glyphh> model package                              # build .glyphh package
+# glyphh> model deploy model-churn.glyphh            # deploy to runtime
+
+# Load demo customer data
+# glyphh> model load demo/customers.jsonl
 ```
 
 ### 4. Query the model
