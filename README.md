@@ -224,6 +224,90 @@ Customer data uploaded via the listener is raw metrics only — no risk labels, 
 
 The model infers risk, churn driver, and recommended actions by comparing raw customer metrics against the exemplars via similarity search.
 
+## Architecture — Agent + Model Closed Loop
+
+The churn model is an **observation and retrieval layer** — it encodes customer metrics and lets you search/compare risk patterns. It never creates, sends, or modifies customer records. Your LLM agent handles actions; the model handles memory and analytics.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    LLM AGENT (Claude)                    │
+│                                                          │
+│  Manages outreach, drafts re-engagement emails,          │
+│  escalates at-risk accounts, schedules CSM calls         │
+│                                                          │
+│  Queries the model via MCP to inform decisions:          │
+│  "which customers are likely to churn?"                  │
+│  "find accounts similar to ones we've already lost"      │
+│  "show me inactive enterprise accounts"                  │
+└────────────┬─────────────────────────┬───────────────────┘
+             │ MCP nl_query            │ Customer actions
+             ▼                         ▼
+┌────────────────────────┐   ┌─────────────────────────────┐
+│   GLYPHH RUNTIME       │   │   CUSTOMER SYSTEMS          │
+│                        │   │                             │
+│  Encodes query → HDC   │   │  CRM / Support desk         │
+│  Cosine search pgvector│   │  Product analytics          │
+│  Returns ranked results│   │  Billing platform           │
+│  with similarity scores│   │  Login telemetry            │
+└────────────────────────┘   └──────────┬──────────────────┘
+             ▲                          │ Events fire
+             │                          │ (login count,
+             │                          │  support ticket,
+             │                          │  feature usage)
+             │                          ▼
+             │               ┌──────────────────────────────┐
+             │               │   DATA PIPELINE              │
+             │               │                              │
+             │               │  Daily usage export → ETL    │
+             │               │  Support webhook → normalize │
+             │               │  Product events → aggregate  │
+             └───────────────│                              │
+              POST /listener │  → POST /{org}/churn/        │
+                             │    listener                  │
+                             └──────────────────────────────┘
+```
+
+**The closed loop:**
+1. Agent queries the model → "which customers need attention?"
+2. Model returns ranked accounts with risk scores and churn drivers
+3. Agent acts on the insight → sends re-engagement email, escalates to CSM, adjusts renewal terms
+4. Customer events fire (logins change, support tickets open, feature usage shifts)
+5. Data pipeline captures events → normalizes → POSTs to listener
+6. Model updates customer glyph metrics (new temporal snapshot)
+7. Agent queries again → loop continues
+
+## MCP Integration
+
+LLM agents query the model via the runtime's MCP tools:
+
+```python
+# Available MCP tools:
+# 1. nl_query — Natural language search
+# 2. gql_query — Structured GQL search
+
+# Example: Agent asks which customers are at risk
+POST /{org_id}/churn/mcp
+{
+    "tool": "nl_query",
+    "arguments": {
+        "query": "customers with declining usage likely to churn"
+    }
+}
+
+# Response:
+{
+    "content": [...],
+    "result": {
+        "matches": [
+            {"customer_id": "acme-corp", "score": 0.87, "risk_level": "high"},
+            {"customer_id": "beta-inc", "score": 0.72, "risk_level": "medium"}
+        ]
+    },
+    "confidence": 0.87,
+    "query_time_ms": 4.1
+}
+```
+
 ## Running the Demo
 
 Customer records are ingested separately via the listener API — the same path real customer data would take.
